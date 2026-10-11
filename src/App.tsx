@@ -53,7 +53,7 @@ export default function App() {
   const [coalCount, setCoalCount] = useState<number>(0);
   const [bellowsActive, setBellowsActive] = useState<boolean>(false);
   const [bellowsDelaying, setBellowsDelaying] = useState<boolean>(false);
-  const [ventOpen, setVentOpen] = useState<boolean>(true); // Starts open so default state vents!
+  const [ventOpen, setVentOpen] = useState<boolean>(false); // Starts closed so boiler accumulates pressure naturally!
   const [brewProgress, setBrewProgress] = useState<number>(0.0);
   const [isBrewing, setIsBrewing] = useState<boolean>(false);
   const [activeMalfunction, setActiveMalfunction] = useState<Malfunction | null>(null);
@@ -64,6 +64,19 @@ export default function App() {
   const [coalShoveledTotal, setCoalShoveledTotal] = useState<number>(0);
   const [maxPressureReached, setMaxPressureReached] = useState<number>(0);
   const [failureReason, setFailureReason] = useState<'EXPLOSION' | 'TIMEOUT' | null>(null);
+
+  // References to mirror mutable gameplay state inside intervals without restarting them every 100ms
+  const realPressureRef = useRef<number>(0.0);
+  const displayedPressureRef = useRef<number>(0.0);
+  const temperatureRef = useRef<number>(22.0);
+  const coalCountRef = useRef<number>(2);
+  const bellowsActiveRef = useRef<boolean>(false);
+  const ventOpenRef = useRef<boolean>(false);
+  const gaugeStuckRef = useRef<boolean>(false);
+  const gaugeLyingRef = useRef<boolean>(false);
+  const lyingValueRef = useRef<number>(0);
+  const isBrewingRef = useRef<boolean>(false);
+  const brewProgressRef = useRef<number>(0.0);
 
   // Notification banners / comical toast
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -88,7 +101,7 @@ export default function App() {
     toastTimerRef.current = setTimeout(() => setToastMessage(null), 3500);
   }, []);
 
-  // MECHANIC 5: GEAR CHAOS (Declared early for interval reference)
+  // MECHANIC 5: GEAR CHAOS
   const triggerGearChaos = useCallback(() => {
     if (gearChaosTimerRef.current) clearTimeout(gearChaosTimerRef.current);
     setGearChaosActive(true);
@@ -99,15 +112,27 @@ export default function App() {
     const effectRoll = Math.floor(Math.random() * 3);
     if (effectRoll === 0) {
       // Adds coal unexpectedly
-      setCoalCount((prev) => Math.min(5, prev + 1));
+      setCoalCount((prev) => {
+        const next = Math.min(5, prev + 1);
+        coalCountRef.current = next;
+        return next;
+      });
       showToast('Gear Chaos! Slipping drive gear jolted the coal feeder (+1 Coal)! Congratulations. You made it worse.');
     } else if (effectRoll === 1) {
       // Inverts relief valve
-      setVentOpen((prev) => !prev);
+      setVentOpen((prev) => {
+        const next = !prev;
+        ventOpenRef.current = next;
+        return next;
+      });
       showToast('Gear Chaos! Drive gear backfire kicked the pressure valve! The engineer has denied responsibility.');
     } else {
       // Drops temperature slightly
-      setTemperature((prev) => Math.max(20, prev - 6));
+      setTemperature((prev) => {
+        const next = Math.max(20, prev - 6);
+        temperatureRef.current = next;
+        return next;
+      });
       showToast('Gear Chaos! Teeth skipped and choked the furnace damper! Congratulations. You made it worse.');
     }
   }, [showToast]);
@@ -122,6 +147,8 @@ export default function App() {
   // Start / Reset Round (Thoroughly resets all state and clears orphan timers)
   const startGame = useCallback(() => {
     clearAllActionTimers();
+
+    // Reset values in state
     setTimeLeft(90.0);
     setTemperature(22.0);
     setRealPressure(0.0);
@@ -129,10 +156,10 @@ export default function App() {
     setGaugeStuck(false);
     setGaugeLying(false);
     setLyingValue(0);
-    setCoalCount(2); // start with 2 coals burning
+    setCoalCount(2); // Start with 2 coals burning
     setBellowsActive(false);
     setBellowsDelaying(false);
-    setVentOpen(true); // Vent starts open
+    setVentOpen(false); // Vent starts closed so boiler accumulates pressure naturally!
     setBrewProgress(0.0);
     setIsBrewing(false);
     setActiveMalfunction(null);
@@ -143,6 +170,20 @@ export default function App() {
     setFailureReason(null);
     setToastMessage(null);
     setScreen('PLAYING');
+
+    // Reset mirror refs
+    realPressureRef.current = 0.0;
+    displayedPressureRef.current = 0.0;
+    temperatureRef.current = 22.0;
+    coalCountRef.current = 2;
+    bellowsActiveRef.current = false;
+    ventOpenRef.current = false;
+    gaugeStuckRef.current = false;
+    gaugeLyingRef.current = false;
+    lyingValueRef.current = 0;
+    isBrewingRef.current = false;
+    brewProgressRef.current = 0.0;
+
     sound.stopAll();
     sound.updateBoilerAmbient(0, 0);
   }, [clearAllActionTimers]);
@@ -169,20 +210,24 @@ export default function App() {
     if (screen !== 'PLAYING') return;
 
     const lyingInterval = setInterval(() => {
-      if (realPressure > 20 && !gaugeLying && Math.random() < 0.6) {
+      const currentP = realPressureRef.current;
+      const isLying = gaugeLyingRef.current;
+      if (currentP > 20 && !isLying && Math.random() < 0.65) {
         setGaugeLying(true);
+        gaugeLyingRef.current = true;
         // Invent an unapproved pseudo-scientific pressure reading!
         const fakeReading = Math.random() > 0.5
-          ? Math.max(10, Math.round(realPressure - 35))
-          : Math.min(94, Math.round(realPressure + 38));
+          ? Math.max(10, Math.round(currentP - 35))
+          : Math.min(94, Math.round(currentP + 38));
         setLyingValue(fakeReading);
+        lyingValueRef.current = fakeReading;
         sound.playGlassTap();
         showToast('This pressure reading has not been approved by science.');
       }
     }, 15000);
 
     return () => clearInterval(lyingInterval);
-  }, [screen, realPressure, gaugeLying, showToast]);
+  }, [screen, showToast]);
 
   // Periodic random gear chaos timer
   useEffect(() => {
@@ -218,88 +263,96 @@ export default function App() {
       });
 
       // 2. Temperature physics
-      setTemperature((prevTemp) => {
-        // Coals generate heat; bellows amplifies combustion
-        const heatGen = coalCount * 1.35 * (bellowsActive ? 2.2 : 1.0);
-        const cooling = 0.35; // ambient heat loss
-        const nextTemp = Math.max(20, Math.min(115, prevTemp + (heatGen - cooling) * dt));
-        return nextTemp;
-      });
+      const currentCoal = coalCountRef.current;
+      const isBellows = bellowsActiveRef.current;
+      // Coals generate heat; bellows amplifies combustion
+      const heatGen = currentCoal * 1.35 * (isBellows ? 2.2 : 1.0);
+      const cooling = 0.35; // ambient heat loss
+      let nextTemp = temperatureRef.current + (heatGen - cooling) * dt;
+      nextTemp = Math.max(20, Math.min(115, nextTemp));
+      temperatureRef.current = nextTemp;
+      setTemperature(nextTemp);
 
-      // Slowly consume coal in furnace
-      if (Math.random() < (bellowsActive ? 0.05 : 0.015)) {
-        setCoalCount((prev) => Math.max(0, prev - 1));
+      // Controlled coal consumption (burns slightly faster under bellows draft)
+      if (Math.random() < (isBellows ? 0.022 : 0.008)) {
+        setCoalCount((prev) => {
+          const nextCoal = Math.max(0, prev - 1);
+          coalCountRef.current = nextCoal;
+          return nextCoal;
+        });
       }
 
       // 3. Pressure physics
-      setRealPressure((prevPressure) => {
-        let pressureDelta = 0;
+      let pressureDelta = 0;
 
-        // Above 60°C, water begins converting into steam pressure
-        if (temperature > 60) {
-          const steamRate = ((temperature - 60) / 40) * (coalCount > 0 ? 3.8 : 1.2);
-          pressureDelta += steamRate;
-        }
+      // Above 60°C, water converts into steam pressure
+      if (nextTemp > 60) {
+        const steamRate = ((nextTemp - 60) / 40) * (currentCoal > 0 ? 3.8 : 1.2);
+        pressureDelta += steamRate;
+      }
 
-        // Vent open aggressively dumps pressure
-        if (ventOpen) {
-          pressureDelta -= 11.5;
-        } else {
-          // Natural slight leakage
-          pressureDelta -= 0.25;
-        }
+      // Vent open aggressively dumps pressure, closed allows accumulation
+      const isVent = ventOpenRef.current;
+      if (isVent) {
+        pressureDelta -= 11.5;
+      } else {
+        // Natural slight leakage
+        pressureDelta -= 0.25;
+      }
 
-        const nextPressure = Math.max(0, prevPressure + pressureDelta * dt);
+      const nextPressure = Math.max(0, realPressureRef.current + pressureDelta * dt);
+      realPressureRef.current = nextPressure;
+      setRealPressure(nextPressure);
 
-        // Track maximum pressure reached
-        setMaxPressureReached((p) => Math.max(p, nextPressure));
+      // Track maximum pressure reached
+      setMaxPressureReached((p) => Math.max(p, nextPressure));
 
-        // Check BOILER EXPLOSION threshold!
-        if (nextPressure >= 95.0) {
-          sound.playExplosion();
-          sound.stopAll();
-          clearAllActionTimers();
-          setFailureReason('EXPLOSION');
-          setScreen('DEFEAT');
-        }
-
-        return nextPressure;
-      });
+      // Check BOILER EXPLOSION threshold!
+      if (nextPressure >= 95.0) {
+        sound.playExplosion();
+        sound.stopAll();
+        clearAllActionTimers();
+        setFailureReason('EXPLOSION');
+        setScreen('DEFEAT');
+        return;
+      }
 
       // 4. Displayed pressure needle smoothing (unless stuck or lying!)
-      setDisplayedPressure((prevDisp) => {
-        if (gaugeStuck) {
-          return prevDisp; // Frozen needle!
-        }
-        if (gaugeLying) {
-          return lyingValue; // Inaccurate pseudo-scientific needle!
-        }
+      let nextDisp = displayedPressureRef.current;
+      if (gaugeStuckRef.current) {
+        // Frozen needle
+      } else if (gaugeLyingRef.current) {
+        nextDisp = lyingValueRef.current; // Inaccurate pseudo-scientific needle!
+      } else {
         // Smoothly ease toward real pressure
-        return prevDisp + (realPressure - prevDisp) * 0.35;
-      });
+        nextDisp = nextDisp + (nextPressure - nextDisp) * 0.35;
+      }
+      displayedPressureRef.current = nextDisp;
+      setDisplayedPressure(nextDisp);
 
       // 5. Update ambient audio hissing with pressure
-      sound.updateBoilerAmbient(realPressure / 100, temperature / 100);
+      sound.updateBoilerAmbient(nextPressure / 100, nextTemp / 100);
 
       // 6. Infusion progress if actively brewing under valid conditions
-      if (isBrewing) {
-        const isTempValid = temperature >= 96;
-        const isPressureValid = realPressure >= 40 && realPressure <= 80;
+      if (isBrewingRef.current) {
+        const isTempValid = nextTemp >= 96;
+        const isPressureValid = nextPressure >= 40 && nextPressure <= 80;
 
         if (isTempValid && isPressureValid) {
-          setBrewProgress((prev) => {
-            const next = prev + 3.8; // Takes ~2.6s of continuous safe infusion
-            if (next >= 100) {
-              sound.playVictory();
-              sound.stopAll();
-              clearAllActionTimers();
-              setScreen('VICTORY');
-              return 100;
-            }
-            return next;
-          });
+          const nextBrew = brewProgressRef.current + 3.8; // Takes ~2.6s of continuous safe infusion
+          brewProgressRef.current = Math.min(100, nextBrew);
+          setBrewProgress(brewProgressRef.current);
+
+          if (brewProgressRef.current >= 100) {
+            sound.playVictory();
+            sound.stopAll();
+            clearAllActionTimers();
+            setScreen('VICTORY');
+            return;
+          }
         } else {
           // Conditions fell out of range while plunger was held!
+          isBrewingRef.current = false;
           setIsBrewing(false);
           sound.playSputter();
           if (!isTempValid) {
@@ -315,35 +368,26 @@ export default function App() {
       clearInterval(interval);
       sound.stopAll();
     };
-  }, [
-    screen,
-    temperature,
-    realPressure,
-    coalCount,
-    bellowsActive,
-    ventOpen,
-    gaugeStuck,
-    gaugeLying,
-    lyingValue,
-    isBrewing,
-    showToast,
-    clearAllActionTimers,
-  ]);
+  }, [screen, showToast, clearAllActionTimers]);
 
   // Actions
   const handleShovelCoal = useCallback(() => {
-    if (coalCount >= 5) {
+    if (coalCountRef.current >= 5) {
       showToast('Firebox is crammed to maximum capacity!');
       return;
     }
-    setCoalCount((prev) => prev + 1);
+    setCoalCount((prev) => {
+      const next = Math.min(5, prev + 1);
+      coalCountRef.current = next;
+      return next;
+    });
     setCoalShoveledTotal((prev) => prev + 1);
     showToast('Coal chunk shoveled into firebox!');
-  }, [coalCount, showToast]);
+  }, [showToast]);
 
   // MECHANIC 2: DELAYED LEVER
   const handlePumpBellows = useCallback(() => {
-    if (bellowsDelaying || bellowsActive) return;
+    if (bellowsDelaying || bellowsActiveRef.current) return;
     setBellowsDelaying(true);
     sound.playGearSlip();
     showToast('Lever I seized! Rusty gears slowly engaging... (1.2s delay)');
@@ -351,19 +395,22 @@ export default function App() {
     bellowsDelayTimerRef.current = setTimeout(() => {
       setBellowsDelaying(false);
       setBellowsActive(true);
+      bellowsActiveRef.current = true;
       sound.playLeverPull();
       showToast('Lever I finally slammed down! Heavy draft roaring into coals!');
 
       bellowsActiveTimerRef.current = setTimeout(() => {
         setBellowsActive(false);
+        bellowsActiveRef.current = false;
       }, 3600);
     }, 1200);
-  }, [bellowsDelaying, bellowsActive, showToast]);
+  }, [bellowsDelaying, showToast]);
 
   // MECHANIC 1: REVERSED CONTROLS (LEVER II)
   const handleToggleVent = useCallback(() => {
     setVentOpen((prev) => {
       const next = !prev;
+      ventOpenRef.current = next;
       if (!next) {
         // Pulled down: seals shut instead of venting!
         sound.playClank();
@@ -381,10 +428,14 @@ export default function App() {
   const handleTapGauge = useCallback(() => {
     setGaugeStuck(false);
     setGaugeLying(false);
-    setDisplayedPressure(realPressure);
+    gaugeStuckRef.current = false;
+    gaugeLyingRef.current = false;
+    const realP = realPressureRef.current;
+    setDisplayedPressure(realP);
+    displayedPressureRef.current = realP;
     sound.playGlassTap();
     showToast('*Ting!* Dial glass tapped. Scientific accuracy temporarily restored!');
-  }, [realPressure, showToast]);
+  }, [showToast]);
 
   // MECHANIC 4: USELESS EMERGENCY BUTTON
   const handleEmergencyFix = useCallback(() => {
@@ -405,8 +456,10 @@ export default function App() {
   }, [showToast]);
 
   const handlePullBrewLever = useCallback(() => {
-    const isTempValid = temperature >= 98;
-    const isPressureValid = realPressure >= 42 && realPressure <= 78;
+    const currentTemp = temperatureRef.current;
+    const currentRealP = realPressureRef.current;
+    const isTempValid = currentTemp >= 98;
+    const isPressureValid = currentRealP >= 42 && currentRealP <= 78;
 
     if (!isTempValid) {
       sound.playSputter();
@@ -414,22 +467,23 @@ export default function App() {
       return;
     }
 
-    if (realPressure < 42) {
+    if (currentRealP < 42) {
       sound.playSputter();
       showToast('Insufficient steam: Needle must enter safe green zone (42-78 PSI).');
       return;
     }
 
-    if (realPressure > 78) {
+    if (currentRealP > 78) {
       sound.playWhistle();
       showToast('Dangerous pressure! Vent steam before the plunger scalding lock clears!');
       return;
     }
 
     // Engage brewing plunger!
+    isBrewingRef.current = true;
     setIsBrewing(true);
     showToast('Infusion plunger engaged! Hot water saturating tea leaves...');
-  }, [temperature, realPressure, showToast]);
+  }, [showToast]);
 
   const handleResolveMalfunction = useCallback(() => {
     setActiveMalfunction(null);
