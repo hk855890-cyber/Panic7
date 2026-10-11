@@ -1,0 +1,8 @@
+{
+  "name": "Steam Panic: The World's Worst Invention",
+  "description": "A comedic steampunk 2D browser game where a Victorian inventor tries to brew one cup of tea using an absurdly complicated steam-powered machine.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

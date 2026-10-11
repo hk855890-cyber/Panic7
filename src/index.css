@@ -1,0 +1,94 @@
+@import "tailwindcss";
+
+@theme {
+  --font-serif: "Cinzel", Georgia, serif;
+  --font-sans: "Outfit", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", monospace;
+}
+
+@keyframes screenShake {
+  0%, 100% { transform: translate(0, 0) rotate(0deg); }
+  20% { transform: translate(-3px, 2px) rotate(-0.5deg); }
+  40% { transform: translate(3px, -2px) rotate(0.5deg); }
+  60% { transform: translate(-2px, -2px) rotate(-0.3deg); }
+  80% { transform: translate(2px, 2px) rotate(0.3deg); }
+}
+
+@keyframes needleJitter {
+  0%, 100% { transform: rotate(var(--rot, 0deg)); }
+  50% { transform: rotate(calc(var(--rot, 0deg) + 1.2deg)); }
+}
+
+@keyframes tubeGlow {
+  0%, 100% { opacity: 0.95; filter: drop-shadow(0 0 6px rgba(251, 146, 60, 0.8)); }
+  50% { opacity: 0.7; filter: drop-shadow(0 0 2px rgba(251, 146, 60, 0.4)); }
+}
+
+@keyframes lampFlicker {
+  0%, 100% { opacity: 1; }
+  35% { opacity: 0.85; }
+  70% { opacity: 0.92; }
+  85% { opacity: 0.78; }
+}
+
+.shake-active {
+  animation: screenShake 0.4s ease-in-out infinite;
+}
+
+.brass-plate {
+  background: linear-gradient(135deg, #2b1f16 0%, #1e150f 50%, #130d09 100%);
+  border: 2px solid #b38728;
+  box-shadow: 
+    inset 0 1px 1px rgba(255, 230, 150, 0.3),
+    inset 0 -2px 4px rgba(0, 0, 0, 0.8),
+    0 4px 16px rgba(0, 0, 0, 0.7);
+}
+
+.brass-bezel {
+  border: 3px solid #c59b27;
+  box-shadow: 
+    inset 0 2px 4px rgba(255, 255, 255, 0.3),
+    inset 0 -2px 6px rgba(0, 0, 0, 0.8),
+    0 2px 8px rgba(0, 0, 0, 0.6);
+}
+
+.brass-btn {
+  background: linear-gradient(180deg, #d4af37 0%, #a67c1e 50%, #684a0d 100%);
+  border: 1px solid #ffd700;
+  box-shadow: 
+    inset 0 1px 0 rgba(255, 255, 255, 0.4),
+    0 3px 6px rgba(0, 0, 0, 0.6);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+}
+
+.brass-btn:hover {
+  background: linear-gradient(180deg, #e5c158 0%, #b88d28 50%, #7d5912 100%);
+}
+
+.brass-btn:active {
+  transform: translateY(1px);
+  box-shadow: 
+    inset 0 2px 4px rgba(0, 0, 0, 0.7),
+    0 1px 2px rgba(0, 0, 0, 0.4);
+}
+
+.pocket-watch {
+  background: radial-gradient(circle at 45% 40%, #fef3c7 0%, #e2d2b5 55%, #bc9f77 100%);
+  border: 4px solid #b38728;
+  box-shadow: 
+    inset 0 0 12px rgba(90, 60, 20, 0.5),
+    0 4px 14px rgba(0, 0, 0, 0.7);
+}
+
+.vacuum-tube {
+  background: radial-gradient(circle at 50% 30%, rgba(255, 200, 120, 0.25) 0%, rgba(20, 10, 5, 0.9) 80%);
+  border: 1px solid rgba(212, 175, 55, 0.5);
+}
+
+.rivet {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, #ffd700, #805c1b 80%);
+  box-shadow: 0 1px 2px rgba(0,0,0,0.8);
+}
